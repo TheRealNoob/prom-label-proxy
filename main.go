@@ -69,6 +69,7 @@ func main() {
 		headerUsesListSyntax       bool
 		rulesWithActiveAlerts      bool
 		upstreamInsecureSkipVerify bool
+		upstreamBasicAuth          string
 	)
 
 	flagset := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -90,6 +91,7 @@ func main() {
 	flagset.BoolVar(&headerUsesListSyntax, "header-uses-list-syntax", false, "When specified, the header line value will be parsed as a comma-separated list. This allows a single tenant header line to specify multiple tenant names.")
 	flagset.BoolVar(&rulesWithActiveAlerts, "rules-with-active-alerts", false, "When true, the proxy will return alerting rules with active alerts matching the tenant label even when the tenant label isn't present in the rule's labels.")
 	flagset.BoolVar(&upstreamInsecureSkipVerify, "upstream-insecure-skip-verify", false, "When specified, skip TLS certificate verification when connecting to upstream server.")
+	flagset.StringVar(&upstreamBasicAuth, "upstream-basicauth", "", "BasicAuth credentials for upstream server. Format: 'username:password' or path to file containing credentials of same format.")
 
 	//nolint: errcheck // Parse() will exit on error.
 	flagset.Parse(os.Args[1:])
@@ -148,6 +150,49 @@ func main() {
 
 	if upstreamInsecureSkipVerify {
 		opts = append(opts, injectproxy.WithInsecureSkipVerify())
+	}
+
+	if upstreamBasicAuth != "" {
+		var basicAuthUsername, basicAuthPassword string
+
+		// Check if the value is a file that exists
+		_, err := os.Stat(upstreamBasicAuth)
+		isFilePath := err == nil
+
+		if isFilePath {
+			// Read from file
+			data, err := os.ReadFile(upstreamBasicAuth)
+			if err != nil {
+				log.Fatalf("Failed to parse BasicAuth credentials: failed to read file %s: %v", upstreamBasicAuth, err)
+			}
+
+			content := strings.TrimSpace(string(data))
+			if content == "" {
+				log.Fatalf("Failed to parse BasicAuth credentials: file %s is empty", upstreamBasicAuth)
+			}
+
+			// Parse the file content
+			parts := strings.SplitN(content, ":", 2)
+			if len(parts) != 2 {
+				log.Fatalf("Failed to parse BasicAuth credentials: invalid format, expected 'username:password'")
+			}
+			if parts[0] == "" {
+				log.Fatalf("Failed to parse BasicAuth credentials: username cannot be empty")
+			}
+			basicAuthUsername, basicAuthPassword = parts[0], parts[1]
+		} else {
+			// Parse as direct username:password format
+			parts := strings.SplitN(upstreamBasicAuth, ":", 2)
+			if len(parts) != 2 {
+				log.Fatalf("Failed to parse BasicAuth credentials: invalid format, expected 'username:password'")
+			}
+			if parts[0] == "" {
+				log.Fatalf("Failed to parse BasicAuth credentials: username cannot be empty")
+			}
+			basicAuthUsername, basicAuthPassword = parts[0], parts[1]
+		}
+
+		opts = append(opts, injectproxy.WithBasicAuth(basicAuthUsername, basicAuthPassword))
 	}
 
 	if regexMatch {

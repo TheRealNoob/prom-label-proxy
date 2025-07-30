@@ -1,3 +1,8 @@
+## 0.12.0 / 2025-07-30
+
+* [FEATURE] Add the `--upstream-insecure-skip-verify` flag to skip TLS certificate verification when connecting to upstream server. #TODO
+* [FEATURE] Add the `--upstream-basicauth` flag to use basicAuth authentication against upstream server. #TODO
+
 ## 0.11.1 / 2025-05-12
 
 Rebuild with the latest Go compiler (`go1.24.3`).

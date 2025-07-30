@@ -1365,3 +1365,58 @@ func TestWithInsecureSkipVerify(t *testing.T) {
 		}
 	})
 }
+
+
+func TestWithBasicAuth(t *testing.T) {
+	m := newMockUpstream(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write(okResponse)
+	}))
+	defer m.Close()
+
+	t.Run("NewRoutes accepts WithBasicAuth option", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel}, WithBasicAuth("user", "pass"))
+		if err != nil {
+			t.Fatalf("unexpected error when creating routes with WithBasicAuth: %v", err)
+		}
+	})
+
+	t.Run("NewRoutes works without WithBasicAuth option", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel})
+		if err != nil {
+			t.Fatalf("unexpected error when creating routes without WithBasicAuth: %v", err)
+		}
+	})
+
+	t.Run("can combine WithBasicAuth with other options", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel},
+			WithBasicAuth("admin", "secret"),
+			WithInsecureSkipVerify(),
+			WithErrorOnReplace(),
+			WithEnabledLabelsAPI())
+		if err != nil {
+			t.Fatalf("unexpected error when combining WithBasicAuth with other options: %v", err)
+		}
+	})
+
+	t.Run("BasicAuth works with both HTTP and HTTPS", func(t *testing.T) {
+		testCases := []struct {
+			name   string
+			scheme string
+		}{
+			{"HTTP upstream", "http"},
+			{"HTTPS upstream", "https"},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				testURL := *m.url
+				testURL.Scheme = tc.scheme
+
+				_, err := NewRoutes(&testURL, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel}, WithBasicAuth("user", "pass"))
+				if err != nil {
+					t.Fatalf("unexpected error with %s upstream: %v", tc.scheme, err)
+				}
+			})
+		}
+	})
+}

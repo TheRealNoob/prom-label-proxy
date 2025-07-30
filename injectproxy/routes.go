@@ -63,6 +63,8 @@ type options struct {
 	regexMatch            bool
 	rulesWithActiveAlerts bool
 	insecureSkipVerify    bool
+	basicAuthUsername     string
+	basicAuthPassword     string
 }
 
 type Option interface {
@@ -124,6 +126,14 @@ func WithRegexMatch() Option {
 func WithInsecureSkipVerify() Option {
 	return optionFunc(func(o *options) {
 		o.insecureSkipVerify = true
+	})
+}
+
+// WithBasicAuth configures BasicAuth credentials for upstream authentication
+func WithBasicAuth(username, password string) Option {
+	return optionFunc(func(o *options) {
+		o.basicAuthUsername = username
+		o.basicAuthPassword = password
 	})
 }
 
@@ -311,11 +321,24 @@ func NewRoutes(upstream *url.URL, label string, extractLabeler ExtractLabeler, o
 
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 
+	// Set up custom transport if needed
 	if opt.insecureSkipVerify && upstream.Scheme == "https" {
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 		proxy.Transport = transport
+	}
+
+	// Set up BasicAuth if configured
+	if opt.basicAuthUsername != "" && opt.basicAuthPassword != "" {
+		// Store the original director
+		originalDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			// Call the original director first
+			originalDirector(req)
+			// Add BasicAuth header
+			req.SetBasicAuth(opt.basicAuthUsername, opt.basicAuthPassword)
+		}
 	}
 
 	r := &routes{
