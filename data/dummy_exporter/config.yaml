@@ -1,0 +1,7 @@
+metrics:
+  - name: bar
+    type: gauge
+    size: 5
+  - name: foo
+    type: counter
+    size: 2
