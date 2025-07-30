@@ -1334,3 +1334,34 @@ func TestQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestWithInsecureSkipVerify(t *testing.T) {
+	m := newMockUpstream(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write(okResponse)
+	}))
+	defer m.Close()
+
+	t.Run("NewRoutes accepts WithInsecureSkipVerify option", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel}, WithInsecureSkipVerify())
+		if err != nil {
+			t.Fatalf("unexpected error when creating routes with WithInsecureSkipVerify: %v", err)
+		}
+	})
+
+	t.Run("NewRoutes works without WithInsecureSkipVerify option", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel})
+		if err != nil {
+			t.Fatalf("unexpected error when creating routes without WithInsecureSkipVerify: %v", err)
+		}
+	})
+
+	t.Run("can combine WithInsecureSkipVerify with other options", func(t *testing.T) {
+		_, err := NewRoutes(m.url, proxyLabel, HTTPFormEnforcer{ParameterName: proxyLabel},
+			WithInsecureSkipVerify(),
+			WithErrorOnReplace(),
+			WithEnabledLabelsAPI())
+		if err != nil {
+			t.Fatalf("unexpected error when combining WithInsecureSkipVerify with other options: %v", err)
+		}
+	})
+}

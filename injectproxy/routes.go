@@ -15,6 +15,7 @@ package injectproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,6 +62,7 @@ type options struct {
 	registerer            prometheus.Registerer
 	regexMatch            bool
 	rulesWithActiveAlerts bool
+	insecureSkipVerify    bool
 }
 
 type Option interface {
@@ -115,6 +117,13 @@ func WithActiveAlerts() Option {
 func WithRegexMatch() Option {
 	return optionFunc(func(o *options) {
 		o.regexMatch = true
+	})
+}
+
+// WithInsecureSkipVerify causes the proxy to skip TLS certificate verification when connecting to upstream
+func WithInsecureSkipVerify() Option {
+	return optionFunc(func(o *options) {
+		o.insecureSkipVerify = true
 	})
 }
 
@@ -301,6 +310,13 @@ func NewRoutes(upstream *url.URL, label string, extractLabeler ExtractLabeler, o
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
+
+	if opt.insecureSkipVerify && upstream.Scheme == "https" {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		proxy.Transport = transport
+	}
 
 	r := &routes{
 		upstream:              upstream,

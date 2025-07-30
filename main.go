@@ -55,19 +55,20 @@ func (i *arrayFlags) Set(value string) error {
 
 func main() {
 	var (
-		insecureListenAddress  string
-		internalListenAddress  string
-		upstream               string
-		queryParam             string
-		headerName             string
-		label                  string
-		labelValues            arrayFlags
-		enableLabelAPIs        bool
-		unsafePassthroughPaths string // Comma-delimited string.
-		errorOnReplace         bool
-		regexMatch             bool
-		headerUsesListSyntax   bool
-		rulesWithActiveAlerts  bool
+		insecureListenAddress      string
+		internalListenAddress      string
+		upstream                   string
+		queryParam                 string
+		headerName                 string
+		label                      string
+		labelValues                arrayFlags
+		enableLabelAPIs            bool
+		unsafePassthroughPaths     string // Comma-delimited string.
+		errorOnReplace             bool
+		regexMatch                 bool
+		headerUsesListSyntax       bool
+		rulesWithActiveAlerts      bool
+		upstreamInsecureSkipVerify bool
 	)
 
 	flagset := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -88,6 +89,7 @@ func main() {
 	flagset.BoolVar(&regexMatch, "regex-match", false, "When specified, the tenant name is treated as a regular expression. In this case, only one tenant name should be provided.")
 	flagset.BoolVar(&headerUsesListSyntax, "header-uses-list-syntax", false, "When specified, the header line value will be parsed as a comma-separated list. This allows a single tenant header line to specify multiple tenant names.")
 	flagset.BoolVar(&rulesWithActiveAlerts, "rules-with-active-alerts", false, "When true, the proxy will return alerting rules with active alerts matching the tenant label even when the tenant label isn't present in the rule's labels.")
+	flagset.BoolVar(&upstreamInsecureSkipVerify, "upstream-insecure-skip-verify", false, "When specified, skip TLS certificate verification when connecting to upstream server.")
 
 	//nolint: errcheck // Parse() will exit on error.
 	flagset.Parse(os.Args[1:])
@@ -116,6 +118,11 @@ func main() {
 		log.Fatalf("Invalid scheme for upstream URL %q, only 'http' and 'https' are supported", upstream)
 	}
 
+	// Warn if insecure-skip-verify is used with HTTP upstream
+	if upstreamInsecureSkipVerify && upstreamURL.Scheme == "http" {
+		log.Printf("Warning: --upstream-insecure-skip-verify flag is ignored when upstream URL uses HTTP scheme")
+	}
+
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		collectors.NewGoCollector(),
@@ -137,6 +144,10 @@ func main() {
 
 	if rulesWithActiveAlerts {
 		opts = append(opts, injectproxy.WithActiveAlerts())
+	}
+
+	if upstreamInsecureSkipVerify {
+		opts = append(opts, injectproxy.WithInsecureSkipVerify())
 	}
 
 	if regexMatch {
